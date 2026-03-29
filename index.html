@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>空气管家</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌬️</text></svg>">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="空气管家">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;600;700;900&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0a0a0a; --card: #151515; --border: #222; --text: #e8e8e8; --dim: #666;
+    --good: #4ade80; --ok: #facc15; --warn: #fb923c; --bad: #ef4444; --terrible: #a855f7; --doom: #7f1d1d;
+  }
+  body {
+    font-family: 'Noto Sans SC', sans-serif; background: var(--bg); color: var(--text);
+    min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column;
+    align-items: center; padding: 1.5rem 1rem 3rem; -webkit-font-smoothing: antialiased;
+  }
+  h1 { font-size: 1.3rem; font-weight: 300; letter-spacing: 0.1em; margin-bottom: 0.3rem; color: var(--dim); }
+  .subtitle { font-size: 0.7rem; color: var(--dim); opacity: 0.5; margin-bottom: 1.2rem; }
+
+  .outdoor-auto {
+    width: 100%; max-width: 400px; background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 1rem 1.2rem; margin-bottom: 0.8rem;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .outdoor-auto .aqi-num { font-size: 2.4rem; font-weight: 900; }
+  .outdoor-auto .aqi-label { font-size: 0.8rem; font-weight: 600; }
+  .outdoor-auto .aqi-info { font-size: 0.72rem; color: var(--dim); line-height: 1.5; }
+  .outdoor-auto .aqi-station { font-size: 0.65rem; color: var(--dim); opacity: 0.7; margin-top: 0.1rem; }
+  .refresh-btn {
+    background: none; border: 1px solid var(--border); border-radius: 8px;
+    color: var(--dim); padding: 0.4rem 0.6rem; font-size: 0.75rem; cursor: pointer;
+    font-family: inherit; transition: border-color 0.2s;
+  }
+  .refresh-btn:active { border-color: var(--warn); }
+  .aqi-loading { color: var(--dim); font-size: 0.8rem; }
+  .aqi-error { color: var(--bad); font-size: 0.75rem; }
+
+  .input-row { width: 100%; max-width: 400px; display: flex; gap: 0.8rem; margin-bottom: 1.2rem; }
+  .input-card {
+    flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 1rem 0.8rem; text-align: center; transition: border-color 0.3s;
+  }
+  .input-card:focus-within { border-color: #444; }
+  .input-card label { display: block; font-size: 0.72rem; color: var(--dim); margin-bottom: 0.4rem; letter-spacing: 0.05em; }
+  .input-card input {
+    width: 100%; background: none; border: none; color: var(--text);
+    font-family: inherit; font-size: 2.8rem; font-weight: 900; text-align: center; outline: none;
+    -moz-appearance: textfield;
+  }
+  .input-card input::-webkit-outer-spin-button, .input-card input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .input-card input::placeholder { color: #333; font-weight: 300; }
+  .input-card .unit { font-size: 0.65rem; color: var(--dim); margin-top: 0.2rem; }
+  .level-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 0.3rem; vertical-align: middle; transition: background 0.3s; }
+
+  .record-btn {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 1rem 1.2rem; display: flex; align-items: center; justify-content: center;
+    color: var(--warn); font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    font-family: inherit; transition: border-color 0.2s, background 0.2s; min-width: 70px;
+  }
+  .record-btn:active { background: rgba(232,160,76,0.1); border-color: var(--warn); }
+  .record-btn.saved { color: var(--good); border-color: rgba(74,222,128,0.3); }
+
+  .result {
+    width: 100%; max-width: 400px; background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 1.5rem; min-height: 160px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; transition: border-color 0.5s;
+  }
+  .result.has-data { border-color: #333; }
+  .result-icon { font-size: 2.5rem; margin-bottom: 0.8rem; }
+  .result-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; line-height: 1.4; }
+  .result-detail { font-size: 0.82rem; color: var(--dim); line-height: 1.8; }
+  .placeholder-text { color: #333; font-size: 0.85rem; font-weight: 300; }
+  .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; margin-top: 1rem; }
+  .tag { padding: 0.4rem 0.9rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; border: 1px solid; }
+  .tag.do { background: rgba(74,222,128,0.1); border-color: rgba(74,222,128,0.3); color: var(--good); }
+  .tag.caution { background: rgba(251,146,60,0.1); border-color: rgba(251,146,60,0.3); color: var(--warn); }
+  .tag.dont { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: var(--bad); }
+
+  .pots-note {
+    width: 100%; max-width: 400px; margin-top: 1rem; padding: 0.8rem 1rem;
+    background: rgba(168,85,247,0.05); border: 1px solid rgba(168,85,247,0.15);
+    border-radius: 10px; font-size: 0.72rem; color: #a78bfa; line-height: 1.6; display: none;
+  }
+
+  .scale {
+    width: 100%; max-width: 400px; margin-top: 1.2rem; padding: 1rem;
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  }
+  .scale-title { font-size: 0.7rem; color: var(--dim); margin-bottom: 0.6rem; }
+  .scale-bar { display: flex; border-radius: 6px; overflow: hidden; height: 8px; margin-bottom: 0.5rem; }
+  .scale-bar div { flex: 1; }
+  .scale-labels { display: flex; font-size: 0.6rem; color: var(--dim); }
+  .scale-labels span { text-align: center; flex: 1; line-height: 1.3; }
+
+  .history-section { width: 100%; max-width: 400px; margin-top: 1.2rem; }
+  .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
+  .history-title { font-size: 0.75rem; color: var(--dim); }
+  .clear-btn { background: none; border: none; color: var(--dim); font-size: 0.65rem; cursor: pointer; font-family: inherit; opacity: 0.5; }
+  .clear-btn:active { opacity: 1; color: var(--bad); }
+  .history-table { width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .history-row { display: flex; padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--border); font-size: 0.72rem; align-items: center; }
+  .history-row:last-child { border-bottom: none; }
+  .history-row.header { color: var(--dim); font-weight: 600; font-size: 0.65rem; }
+  .history-row .h-time { flex: 2; color: var(--dim); }
+  .history-row .h-outdoor { flex: 1.2; text-align: center; }
+  .history-row .h-indoor { flex: 1.2; text-align: center; }
+  .history-row .h-verdict { flex: 1.5; text-align: right; font-size: 0.65rem; }
+  .history-empty { padding: 1.5rem; text-align: center; color: #333; font-size: 0.75rem; }
+  .dot-inline { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 0.2rem; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<h1>🌬️ 空气管家</h1>
+<p class="subtitle">哈尔滨 · 自动获取室外AQI</p>
+
+<div class="outdoor-auto" id="outdoorCard">
+  <div>
+    <div class="aqi-loading" id="aqiLoading">加载中...</div>
+    <div id="aqiDisplay" style="display:none;">
+      <div style="display:flex;align-items:baseline;gap:0.5rem;">
+        <span class="aqi-num" id="aqiNum">--</span>
+        <span class="aqi-label" id="aqiLevel">--</span>
+      </div>
+      <div class="aqi-info"><span id="aqiTime"></span> · <span id="aqiTemp"></span></div>
+      <div class="aqi-station" id="aqiStation"></div>
+    </div>
+    <div class="aqi-error" id="aqiError" style="display:none;">获取失败，请刷新</div>
+  </div>
+  <button class="refresh-btn" onclick="fetchAQI()">刷新</button>
+</div>
+
+<div class="input-row">
+  <div class="input-card" style="flex:2;">
+    <label><span class="level-dot" id="indoorDot"></span>室内 PM2.5</label>
+    <input type="number" id="indoor" placeholder="--" inputmode="numeric" min="0" max="999">
+    <div class="unit">净化器读数</div>
+  </div>
+  <button class="record-btn" id="recordBtn" onclick="saveRecord()">📝<br>记录</button>
+</div>
+
+<div class="result" id="result"><p class="placeholder-text">输入室内读数看建议</p></div>
+
+<div class="pots-note" id="potsNote">⚡ POTS提醒：空气污染会加重炎症反应，消耗本就不多的电量。污染天尽量减少外出和体力活动。</div>
+
+<div class="scale">
+  <div class="scale-title">AQI 速查</div>
+  <div class="scale-bar"><div style="background:#4ade80"></div><div style="background:#facc15"></div><div style="background:#fb923c"></div><div style="background:#ef4444"></div><div style="background:#a855f7"></div><div style="background:#7f1d1d"></div></div>
+  <div class="scale-labels"><span>0-50<br>优</span><span>51-100<br>良</span><span>101-150<br>轻度</span><span>151-200<br>中度</span><span>201-300<br>重度</span><span>300+<br>爆表</span></div>
+</div>
+
+<div class="history-section">
+  <div class="history-header">
+    <span class="history-title">📊 历史记录</span>
+    <button class="clear-btn" onclick="clearHistory()">清除</button>
+  </div>
+  <div class="history-table" id="historyTable"><div class="history-empty">还没有记录</div></div>
+</div>
+
+<script>
+const API_TOKEN = '5647b9f8afce5db115d6709fa3a96889dac49144';
+const CITY = 'harbin';
+let currentOutdoorAQI = null;
+const indoorInput = document.getElementById('indoor');
+const resultDiv = document.getElementById('result');
+const potsNote = document.getElementById('potsNote');
+const indoorDot = document.getElementById('indoorDot');
+
+async function fetchAQI() {
+  const loading = document.getElementById('aqiLoading');
+  const display = document.getElementById('aqiDisplay');
+  const error = document.getElementById('aqiError');
+  loading.style.display = 'block'; display.style.display = 'none'; error.style.display = 'none';
+  try {
+    const resp = await fetch(`https://api.waqi.info/feed/${CITY}/?token=${API_TOKEN}`);
+    const json = await resp.json();
+    if (json.status !== 'ok') throw new Error('API error');
+    const data = json.data;
+    currentOutdoorAQI = data.aqi;
+    document.getElementById('aqiNum').textContent = data.aqi;
+    document.getElementById('aqiNum').style.color = getColor(data.aqi, true);
+    document.getElementById('aqiLevel').textContent = getLevel(data.aqi);
+    document.getElementById('aqiLevel').style.color = getColor(data.aqi, true);
+    const time = data.time?.s || '';
+    const timeParts = time.split(' ');
+    document.getElementById('aqiTime').textContent = timeParts[1] ? timeParts[1].slice(0, 5) : '';
+    const temp = data.iaqi?.t?.v;
+    document.getElementById('aqiTemp').textContent = temp !== undefined ? temp + '°C' : '';
+    const station = data.city?.name || '';
+    document.getElementById('aqiStation').textContent = station.length > 30 ? station.slice(0, 30) + '...' : station;
+    loading.style.display = 'none'; display.style.display = 'block';
+    analyze();
+  } catch (e) {
+    loading.style.display = 'none'; error.style.display = 'block';
+    console.error('AQI fetch error:', e);
+  }
+}
+
+function getLevel(aqi) {
+  if (aqi <= 50) return '优'; if (aqi <= 100) return '良'; if (aqi <= 150) return '轻度';
+  if (aqi <= 200) return '中度'; if (aqi <= 300) return '重度'; return '爆表';
+}
+
+function getColor(val, isAQI) {
+  if (!isAQI) { if (val<=15) return '#4ade80'; if (val<=35) return '#facc15'; if (val<=75) return '#fb923c'; if (val<=150) return '#ef4444'; return '#a855f7'; }
+  if (val<=50) return '#4ade80'; if (val<=100) return '#facc15'; if (val<=150) return '#fb923c'; if (val<=200) return '#ef4444'; if (val<=300) return '#a855f7'; return '#7f1d1d';
+}
+
+function getShortVerdict(indoor, outdoor) {
+  if (outdoor<=50) return '可开窗'; if (outdoor<=100 && indoor<=35) return '还行';
+  if (outdoor>100 && indoor<=25) return '别开窗'; if (outdoor>100 && indoor>75) return '紧急';
+  if (outdoor>100) return '关窗'; return '注意';
+}
+
+function analyze() {
+  const indoor = parseInt(indoorInput.value);
+  const outdoor = currentOutdoorAQI;
+  indoorDot.style.background = !isNaN(indoor) ? getColor(indoor, false) : 'transparent';
+  if (isNaN(indoor) && outdoor === null) {
+    resultDiv.innerHTML = '<p class="placeholder-text">输入室内读数看建议</p>';
+    resultDiv.classList.remove('has-data'); potsNote.style.display = 'none'; return;
+  }
+  resultDiv.classList.add('has-data');
+  let icon='', title='', details=[], actions=[], showPots=false;
+  const hasIndoor = !isNaN(indoor), hasOutdoor = outdoor !== null;
+
+  if (!hasIndoor && hasOutdoor) {
+    if (outdoor<=50) { icon='🟢'; title='空气很好，随便浪'; actions=[{text:'可以开窗',type:'do'},{text:'出门不用口罩',type:'do'}]; }
+    else if (outdoor<=100) { icon='🟡'; title='空气还行'; actions=[{text:'可以短时开窗',type:'do'},{text:'出门可不戴口罩',type:'do'}]; }
+    else if (outdoor<=150) { icon='🟠'; title='轻度污染'; actions=[{text:'少开窗',type:'caution'},{text:'出门戴口罩',type:'caution'}]; showPots=true; }
+    else if (outdoor<=200) { icon='🔴'; title='中度污染，少出门'; actions=[{text:'别开窗',type:'dont'},{text:'出门必须N95',type:'dont'},{text:'净化器开着',type:'caution'}]; showPots=true; }
+    else if (outdoor<=300) { icon='🟣'; title='重度污染，关窗待着'; actions=[{text:'关窗',type:'dont'},{text:'别出门',type:'dont'},{text:'净化器最大档',type:'dont'}]; showPots=true; }
+    else { icon='💀'; title='爆表了，别动'; actions=[{text:'关死窗户',type:'dont'},{text:'别出门',type:'dont'},{text:'净化器全速',type:'dont'}]; showPots=true; }
+  }
+  if (hasIndoor && !hasOutdoor) {
+    if (indoor<=15) { icon='✨'; title='室内空气很好'; details.push('PM2.5 ≤ 15，净化器在干活'); }
+    else if (indoor<=35) { icon='👌'; title='室内还行'; details.push('PM2.5 略高，净化器继续开着'); }
+    else if (indoor<=75) { icon='😐'; title='室内偏高了'; details.push('检查窗户是否关好，净化器开大档'); actions=[{text:'关窗',type:'caution'},{text:'净化器加档',type:'caution'}]; }
+    else { icon='😷'; title='室内污染严重'; details.push('窗户可能没关 / 刚开过窗'); actions=[{text:'马上关窗',type:'dont'},{text:'净化器最大档',type:'dont'}]; showPots=true; }
+  }
+  if (hasIndoor && hasOutdoor) {
+    if (outdoor<=50 && indoor<=15) { icon='🌿'; title='内外都好，完美'; actions=[{text:'可以开窗',type:'do'},{text:'出门随意',type:'do'}]; }
+    else if (outdoor<=50 && indoor>15) { icon='🪟'; title='外面好，开窗换气'; details.push(`室内 ${indoor} 偏高，外面才 ${outdoor}，开窗5-10分钟`); actions=[{text:'开窗5-10分钟',type:'do'}]; }
+    else if (outdoor<=100 && indoor<=35) { icon='👍'; title='都还行'; details.push('可以短开窗换气5-10分钟'); actions=[{text:'可以短开窗',type:'do'},{text:'出门可不戴口罩',type:'do'}]; }
+    else if (outdoor<=100 && indoor>35) { icon='🪟'; title='室内偏高，可以短开窗'; details.push(`室内 ${indoor}，外面 ${outdoor} 还行，开窗5-10分钟再关`); actions=[{text:'短开窗换气',type:'do'},{text:'然后关窗开净化器',type:'caution'}]; }
+    else if (outdoor>100 && indoor<=25) { icon='🏠'; title='外面脏，家里干净，别开窗'; details.push(`净化器压住了，室内只有 ${indoor}，继续关窗`); actions=[{text:'别开窗',type:'dont'},{text:'净化器继续开',type:'caution'},{text:'出门戴N95',type:'caution'}]; showPots=outdoor>150; }
+    else if (outdoor>100 && indoor>25 && indoor<=75) { icon='😐'; title='内外都不太好'; details.push(`室内 ${indoor} 在爬，别开窗，净化器加档`); actions=[{text:'关窗',type:'dont'},{text:'净化器加档',type:'caution'},{text:'出门戴N95',type:'dont'}]; showPots=true; }
+    else if (outdoor>100 && indoor>75) { icon='🚨'; title='室内外都脏，紧急处理'; details.push('关窗 + 净化器最大档，等数字降下来'); actions=[{text:'马上关窗',type:'dont'},{text:'净化器全速',type:'dont'},{text:'别出门',type:'dont'}]; showPots=true; }
+  }
+
+  let html = `<div class="result-icon">${icon}</div><div class="result-title">${title}</div>`;
+  if (details.length) html += `<div class="result-detail">${details.join('<br>')}</div>`;
+  if (actions.length) { html += '<div class="actions">'; actions.forEach(a => html += `<span class="tag ${a.type}">${a.text}</span>`); html += '</div>'; }
+  resultDiv.innerHTML = html;
+  potsNote.style.display = showPots ? 'block' : 'none';
+}
+
+// ─── History ───
+function getHistory() { try { return JSON.parse(localStorage.getItem('airHistory') || '[]'); } catch { return []; } }
+function saveHistoryData(records) { localStorage.setItem('airHistory', JSON.stringify(records.slice(-50))); }
+
+function saveRecord() {
+  const indoor = parseInt(indoorInput.value);
+  const outdoor = currentOutdoorAQI;
+  if (isNaN(indoor) && outdoor === null) return;
+  const record = { time: new Date().toISOString(), indoor: isNaN(indoor)?null:indoor, outdoor: outdoor, verdict: (isNaN(indoor)||outdoor===null)?'--':getShortVerdict(indoor,outdoor) };
+  const history = getHistory(); history.push(record); saveHistoryData(history); renderHistory();
+  const btn = document.getElementById('recordBtn');
+  btn.classList.add('saved'); btn.innerHTML = '✅<br>已记';
+  setTimeout(() => { btn.classList.remove('saved'); btn.innerHTML = '📝<br>记录'; }, 1500);
+}
+
+function renderHistory() {
+  const history = getHistory();
+  const table = document.getElementById('historyTable');
+  if (history.length === 0) { table.innerHTML = '<div class="history-empty">还没有记录</div>'; return; }
+  let html = '<div class="history-row header"><span class="h-time">时间</span><span class="h-outdoor">室外</span><span class="h-indoor">室内</span><span class="h-verdict">判断</span></div>';
+  history.slice().reverse().slice(0, 20).forEach(r => {
+    const d = new Date(r.time);
+    const timeStr = `${(d.getMonth()+1)}/${d.getDate()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+    const outColor = r.outdoor !== null ? getColor(r.outdoor, true) : 'transparent';
+    const inColor = r.indoor !== null ? getColor(r.indoor, false) : 'transparent';
+    html += `<div class="history-row"><span class="h-time">${timeStr}</span><span class="h-outdoor"><span class="dot-inline" style="background:${outColor}"></span>${r.outdoor??'--'}</span><span class="h-indoor"><span class="dot-inline" style="background:${inColor}"></span>${r.indoor??'--'}</span><span class="h-verdict">${r.verdict}</span></div>`;
+  });
+  table.innerHTML = html;
+}
+
+function clearHistory() { if (confirm('确定清除所有历史记录？')) { localStorage.removeItem('airHistory'); renderHistory(); } }
+
+indoorInput.addEventListener('input', analyze);
+fetchAQI();
+renderHistory();
+setInterval(fetchAQI, 30 * 60 * 1000);
+</script>
+</body>
+</html>
